@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Random Dog Breed Explorer</title>
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="header">
+        <h1>Random Dog Breed Explorer</h1>
+        <p>
+          Click the button to discover a random dog breed and learn quick facts.
+        </p>
+      </header>
+
+      <section class="card" aria-live="polite">
+        <div class="image-wrap">
+          <img id="dogImg" alt="Random dog" />
+          <div id="badge" class="badge" hidden>Breed</div>
+        </div>
+
+        <div class="content">
+          <h2 id="breedName" class="breed-name">Loading...</h2>
+
+          <ul class="facts">
+            <li><span>Temperament:</span> <span id="temperament">-</span></li>
+            <li><span>Life span:</span> <span id="lifeSpan">-</span></li>
+            <li><span>Breed group:</span> <span id="breedGroup">-</span></li>
+          </ul>
+
+          <div class="actions">
+            <button id="btn" type="button">Show Another Dog</button>
+            <p id="status" class="status" role="status"></p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <small> Data from The Dog API. </small>
+      </footer>
+    </main>
+
+    <script src="index.js"></script>
+  </body>
+</html>

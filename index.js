@@ -1,5 +1,5 @@
 // Random Dog Breed Explorer
-// Uses The Dog API and guarantees breed info via fallback requests.
+// Uses separate GET requests for image view and breed details view.
 
 const dogImg = document.getElementById("dogImg");
 const badge = document.getElementById("badge");
@@ -10,9 +10,16 @@ const breedGroup = document.getElementById("breedGroup");
 const btn = document.getElementById("btn");
 const statusEl = document.getElementById("status");
 
+const imageViewBtn = document.getElementById("imageViewBtn");
+const detailsViewBtn = document.getElementById("detailsViewBtn");
+
 // Optional API key. Leave empty to use public rate limits.
 const API_KEY =
   "live_89VjHdwVHCfYaGQmyZyRxHGaTNq8n7Z3d9oCtwj03sn4CWrnMZdmauzkzekWYtmw";
+
+let currentBreedId = null;
+let currentBreedName = "Unknown breed";
+let currentBreedData = null;
 
 function resetBreedInfo() {
   badge.hidden = true;
@@ -34,32 +41,43 @@ async function apiGet(url) {
   return res.json();
 }
 
-async function fetchRandomDog() {
+function normalizeText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+async function loadImageView() {
   statusEl.textContent = "";
   btn.disabled = true;
+  imageViewBtn.disabled = true;
+  detailsViewBtn.disabled = true;
 
   try {
     let item = null;
 
-    // First try: direct image with breed metadata.
+    // GET request #1: image endpoint
     const directData = await apiGet(
-      "https://api.thedogapi.com/v1/images/search?limit=1&has_breeds=true"
+      "https://api.thedogapi.com/v1/images/search?limit=1&has_breeds=true",
     );
     item = directData[0] || null;
 
-    // Fallback: pick a random breed and request an image for that breed.
+    // Fallback: if breed metadata is missing, pick a random breed
     if (!item || !Array.isArray(item.breeds) || item.breeds.length === 0) {
       const breeds = await apiGet("https://api.thedogapi.com/v1/breeds");
+
       if (!Array.isArray(breeds) || breeds.length === 0) {
         throw new Error("No breeds available from API.");
       }
 
       const randomBreed = breeds[Math.floor(Math.random() * breeds.length)];
+
       const byBreedData = await apiGet(
-        `https://api.thedogapi.com/v1/images/search?limit=1&breed_ids=${randomBreed.id}`
+        `https://api.thedogapi.com/v1/images/search?limit=1&breed_ids=${randomBreed.id}`,
       );
 
       item = byBreedData[0] || { url: "", breeds: [randomBreed] };
+
       if (!Array.isArray(item.breeds) || item.breeds.length === 0) {
         item.breeds = [randomBreed];
       }
@@ -70,29 +88,113 @@ async function fetchRandomDog() {
     }
 
     const breed = item.breeds && item.breeds[0] ? item.breeds[0] : null;
+
     if (!breed) {
       throw new Error("Breed info not available for this image.");
     }
 
+    currentBreedId = breed.id ?? null;
+    currentBreedName = breed.name || "Unknown breed";
+    currentBreedData = breed;
+
     dogImg.src = item.url;
-    dogImg.alt = `${breed.name || "Dog"} image`;
+    dogImg.alt = `${currentBreedName} image`;
 
     badge.hidden = false;
     badge.textContent = "Breed";
 
-    breedName.textContent = breed.name || "Unknown breed";
-    temperament.textContent = breed.temperament || "-";
+    // Image view only shows basic info
+    breedName.textContent = currentBreedName;
+    temperament.textContent = "-";
+    lifeSpan.textContent = "-";
+    breedGroup.textContent = "-";
 
-    lifeSpan.textContent = breed.life_span || "-";
-    breedGroup.textContent = breed.breed_group || "-";
+    statusEl.textContent = "Dog image loaded.";
   } catch (err) {
     resetBreedInfo();
-    statusEl.textContent = "Could not load breed details. Please try again.";
+    currentBreedId = null;
+    currentBreedName = "Unknown breed";
+    currentBreedData = null;
+    statusEl.textContent = "Could not load dog image. Please try again.";
     console.error(err);
   } finally {
     btn.disabled = false;
+    imageViewBtn.disabled = false;
+    detailsViewBtn.disabled = false;
   }
 }
 
-btn.addEventListener("click", fetchRandomDog);
-fetchRandomDog();
+async function loadDetailsView() {
+  statusEl.textContent = "";
+  btn.disabled = true;
+  imageViewBtn.disabled = true;
+  detailsViewBtn.disabled = true;
+
+  try {
+    if (!currentBreedId && !currentBreedName) {
+      await loadImageView();
+    }
+
+    // GET request #2: breeds endpoint
+    const breeds = await apiGet("https://api.thedogapi.com/v1/breeds");
+
+    if (!Array.isArray(breeds) || breeds.length === 0) {
+      throw new Error("No breeds available from API.");
+    }
+
+    let breedDetails = null;
+
+    // First try matching by id
+    if (currentBreedId !== null) {
+      breedDetails = breeds.find(
+        (breed) => String(breed.id) === String(currentBreedId),
+      );
+    }
+
+    // If id match fails, try matching by name
+    if (!breedDetails && currentBreedName) {
+      breedDetails = breeds.find(
+        (breed) =>
+          normalizeText(breed.name) === normalizeText(currentBreedName),
+      );
+    }
+
+    // Final fallback: use breed info from image response
+    if (!breedDetails && currentBreedData) {
+      breedDetails = currentBreedData;
+    }
+
+    if (!breedDetails) {
+      throw new Error("Breed details not found.");
+    }
+
+    badge.hidden = false;
+    badge.textContent = "Breed";
+
+    breedName.textContent =
+      breedDetails.name || currentBreedName || "Unknown breed";
+    temperament.textContent = breedDetails.temperament || "-";
+    lifeSpan.textContent = breedDetails.life_span || "-";
+    breedGroup.textContent = breedDetails.breed_group || "-";
+
+    statusEl.textContent = "Breed details loaded.";
+  } catch (err) {
+    temperament.textContent = currentBreedData?.temperament || "-";
+    lifeSpan.textContent = currentBreedData?.life_span || "-";
+    breedGroup.textContent = currentBreedData?.breed_group || "-";
+    statusEl.textContent =
+      "Could not load full breed details. Showing available info.";
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    imageViewBtn.disabled = false;
+    detailsViewBtn.disabled = false;
+  }
+}
+
+imageViewBtn.addEventListener("click", loadImageView);
+detailsViewBtn.addEventListener("click", loadDetailsView);
+btn.addEventListener("click", loadImageView);
+
+// Load image view first
+loadImageView();
